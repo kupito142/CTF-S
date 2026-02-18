@@ -20,7 +20,8 @@ The repository is organized by platform and challenge category:
 ├── TryHackMe/         # Guided rooms and pathways
 │   ├── Easy/
 │   └── Medium/
-├── Competitions/      # Specific event write-ups (e.g., picoCTF)
+    └── HARD/
+├── Challenges/      # Specific event write-ups (e.g., picoCTF)
 │   ├── picoCTF-2025/
 │   └── LACTF-2026/
 ├── Scripts/           # Custom Python/Bash automation tools
