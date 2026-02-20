@@ -32,6 +32,7 @@ This are only for educational purposes only. Only and only for ethical use. I do
 
 12. Kali: https://www.kali.org/
 
+13. Online Nmap Scanner: https://hackertarget.com/nmap-online-port-scanner/
 13. VulnHub: https://www.vulnhub.com/
 
 14. ProtonVPN: https://protonvpn.com/
