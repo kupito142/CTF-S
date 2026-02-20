@@ -8,7 +8,7 @@ This are only for educational purposes only. Only and only for ethical use. I do
 
 ## Links
 
-1. OhSiNt framework: https://osintframework.com/
+1. OSINT framework: https://osintframework.com/
 
 2. Shodan: https://www.shodan.io/
 
