@@ -4,7 +4,10 @@ In this page you would find links to website that may be useful for anything sec
 
 ## Disclaimer
 
-This are only for educational purposes only. Only and only for ethical use. I do not condone the use of any techniques or tools described here for illegal activities. Always obtain permission before testing any system. Thank you!
+This are only for educational purposes only. Only and only for ethical use. I do not condone the use of any techniques or tools described here for illegal activities. Always obtain permission before testing any system.
+Some tools are seen as a precursor to a system and network attack. Therefore should never be carried out on public servers on the internet or on an organization's network without permission.
+
+Thank you!
 
 ## Links
 
